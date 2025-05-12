@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         
-        CONTAINERS_BASE = "/code/dockers-containers"
+        CONTAINERS_BASE = "code/dockers-containers"
 		REPO_NAME = "ext_web-check"
         EXTERNAL_PATH = "${CONTAINERS_BASE}/${REPO_NAME}"
 		DOCKER_FILE = "${CONTAINERS_BASE}/docker-compose.yml"
