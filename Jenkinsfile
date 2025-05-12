@@ -58,7 +58,7 @@ pipeline {
                     dir(EXTERNAL_PATH) {
                         sh """
                             docker-compose -f ${DOCKER_FILE} down
-                            docker-compose -f ${DOCKER_FILE} up -d
+                            docker-compose -f ${DOCKER_FILE} up -d --build
                         """
                         echo "✓ Servicio desplegado en contenedor Docker"
                     }
