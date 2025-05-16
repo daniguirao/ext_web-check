@@ -46,8 +46,10 @@ pipeline {
                 script {
                     echo "📁 Generando estructura copiando los ficheros"
 
+                    // Crear la estructura de directorios en TARGET_PATH
+                    sh "mkdir -p ${env.TARGET_PATH}"
                     // Comando bash que crea la estructura y enlaza solo archivos
-                    sh "cp ${env.WORKSPACE}/* ${env.TARGET_PATH}/*"
+                    sh "cp ${env.WORKSPACE}/* ${env.TARGET_PATH}/"
 
                     echo "✅ Ficheros actualizados en ${env.TARGET_PATH}"
                 }
