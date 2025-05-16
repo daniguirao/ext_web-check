@@ -5,12 +5,11 @@ pipeline {
         TYPE_PROJECT = 'DOCKER_COMPOSE_BUILD'
         PROJECT_NAME = "${env.JOB_NAME}"
         BACKUPDIR = "${env.BACKUPSPACE}/${env.PROJECT_NAME}"
-        TARGET_PATH = ""
         COMPOSE_FILE = "${env.TARGET_PATH}/docker-compose.yml"
     }
     
     stages {
-        stage('Inicialización de variables') {
+        stage('🔧 Inicialización de variables') {
             steps {
                 script {
                     if (env.TYPE_PROJECT == 'DOCKER_COMPOSE_BUILD') {
