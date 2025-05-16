@@ -4,7 +4,7 @@ pipeline {
     environment {
         COMPOSE_FILE = "docker-compose.yml"
         BACKUP_DIR = ".backup"
-        PROJECT_NAME = "miapp"
+        PROJECT_NAME = "ext_web-check"
     }
 
     stages {
