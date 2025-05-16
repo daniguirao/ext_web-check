@@ -1,8 +1,8 @@
 version: '3.8'
 services:
-  ext-network-check:
+  ext_web-check:
     build: .
     ports:
       - 32111:32111
-    container_name: ext-network-check
+    container_name: ext_web-check
     restart: unless-stopped
