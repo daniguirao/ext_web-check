@@ -2,10 +2,29 @@ pipeline {
     agent any
 
     environment {
-        COMPOSE_FILE = "docker-compose.yml"
-        PROJECT_NAME = "ext_web-check"
+        TYPE_PROJECT = 'DOCKER_COMPOSE_BUILD'
+        PROJECT_NAME = "${env.JOB_NAME}"
         BACKUPDIR = "${env.BACKUPSPACE}/${env.PROJECT_NAME}"
+        TARGET_PATH = ""
+        COMPOSE_FILE = "${env.TARGET_PATH}/docker-compose.yml"
     }
+    stages {
+        stage('Inicialización de variables') {
+            steps {
+                script {
+                    if (env.TYPE_PROJECT == 'DOCKER_COMPOSE_BUILD') {
+                        env.TARGET_PATH = "${env.DOCKERSPATH}/${env.PROJECT_NAME}"
+                    } else if (env.TYPE_PROJECT == 'PYTHON_LIB') {
+                        env.TARGET_PATH = "${env.PYTHONLIBSPATH}/${env.PROJECT_NAME}"
+                    } else {
+                        error "Tipo de proyecto desconocido: ${env.TYPE_PROJECT}"
+                    }
+
+                    echo "🔧 TARGET_PATH establecido en: ${env.TARGET_PATH}"
+                    echo "🔧 COMPOSE_FILE establecido en: ${env.COMPOSE_FILE}"
+                }
+            }
+        }
 
     stages {
         stage('Checkout') {
@@ -16,7 +35,7 @@ pipeline {
             }
         }
 
-        stage('Backup anterior') {
+        stage('Backup building') {
             steps {
                 script {
                     sh "mkdir -p ${env.BACKUPDIR}"
@@ -27,50 +46,80 @@ pipeline {
             }
         }
 
-        stage('Parar servicio actual') {
+        stage('Crear enlaces simbólicos (solo una vez)') {
             steps {
                 script {
-                    def running = sh(
-                        script: "docker-compose -f ${env.COMPOSE_FILE} ps -q | grep -q . && echo true || echo false",
-                        returnStdout: true
-                    ).trim()
+                    echo "📁 Generando estructura de enlaces simbólicos..."
 
-                    // Guardamos el estado en una variable de entorno
-                    env.HAD_RUNNING_SERVICE = running
-                    echo "¿Había servicios corriendo?: ${env.HAD_RUNNING_SERVICE}"
+                    // Comando bash que crea la estructura y enlaza solo archivos
+                    sh """
+                        cd ${env.WORKSPACE}
 
-                    // Paramos el servicio si estaba corriendo
-                    sh "docker-compose -f ${env.COMPOSE_FILE} down || true"
+                        find . -type f | while read file; do
+                            target_dir="${env.TARGET_PATH}/\$(dirname "\$file")"
+                            mkdir -p "\$target_dir"
+                            ln -sf "${env.WORKSPACE}/\$file" "\$target_dir/\$(basename "\$file")"
+                        done
+                    """
+
+                    echo "✅ Enlaces simbólicos creados en ${env.TARGET_PATH}"
                 }
             }
         }
-
-        stage('Despliegue nuevo') {
+        
+        stage('STOPPING CURRENT SERVICE') {
             steps {
                 script {
-                    try {
-                        sh "docker-compose -f ${env.COMPOSE_FILE} up -d --build"
-                    } catch (e) {
-                        echo "¡Error en el despliegue!"
-                        currentBuild.result = 'FAILURE'
-                        error("Despliegue fallido, lanzando rollback")
+                    if (env.TYPE_PROJECT == 'DOCKER_COMPOSE_BUILD') {
+                        def running = sh(
+                            script: "docker-compose -f ${env.COMPOSE_FILE} ps -q | grep -q . && echo true || echo false",
+                            returnStdout: true
+                        ).trim()
+
+                        // Guardamos el estado en una variable de entorno
+                        env.HAD_RUNNING_SERVICE = running
+                        echo "¿Había servicios corriendo?: ${env.HAD_RUNNING_SERVICE}"
+
+                        // Paramos el servicio si estaba corriendo
+                        sh "docker-compose -f ${env.COMPOSE_FILE} down || true"
+                    }
+                    if (env.TYPE_PROJECT == 'PYTHON_LIB') {
+                        echo "No se requiere parar el servicio actual en PYTHON_LIB"
                     }
                 }
             }
         }
 
-        stage('Ver directorio') {
-            steps {
-                echo "Ruta del workspace: ${env.WORKSPACE}"
-                sh "ls -la ${env.WORKSPACE}"
-            }
-        }
-        stage('Verificación del despliegue') {
+        stage('DEPLOYMENT NEW SERVICE') {
             steps {
                 script {
-                    def running = sh(script: "docker ps --filter 'name=${env.PROJECT_NAME}' --format '{{.Names}}'", returnStdout: true).trim()
-                    if (!running) {
-                        error("El servicio ${env.PROJECT_NAME} no está corriendo")
+                    if (env.TYPE_PROJECT == 'DOCKER_COMPOSE_BUILD') {
+                        try {
+                            sh "docker-compose -f ${env.COMPOSE_FILE} up -d --build"
+                        } catch (e) {
+                            echo "¡Error en el despliegue!"
+                            currentBuild.result = 'FAILURE'
+                            error("Despliegue fallido, lanzando rollback")
+                        }
+                    }
+                    if (env.TYPE_PROJECT == 'PYTHON_LIB') {
+                        echo "No se requiere parar el servicio actual en PYTHON_LIB"
+                    }
+                }
+            }
+        }
+
+        stage('CHECKING SERVICE') {
+            steps {
+                script {
+                    if (env.TYPE_PROJECT == 'DOCKER_COMPOSE_BUILD') {
+                        def running = sh(script: "docker ps --filter 'name=${env.PROJECT_NAME}' --format '{{.Names}}'", returnStdout: true).trim()
+                        if (!running) {
+                            error("El servicio ${env.PROJECT_NAME} no está corriendo")
+                        }
+                    }
+                    if (env.TYPE_PROJECT == 'PYTHON_LIB') {
+                        echo "No se requiere parar el servicio actual en PYTHON_LIB"
                     }
                 }
             }
@@ -94,9 +143,13 @@ pipeline {
                     // Restaura desde el backup
                     sh "cp -r ${env.BACKUPDIR}/* ${env.WORKSPACE}/"
 
-                    // Intenta levantar nuevamente el servicio
-                    sh "docker-compose -f ${env.WORKSPACE}/docker-compose.yml up -d --build || true"
+                    if (env.TYPE_PROJECT == 'DOCKER_COMPOSE_BUILD') {
+                        sh "docker-compose -f ${COMPOSE_FILE} up -d --build || true"
+                    }
 
+                    if (env.TYPE_PROJECT == 'PYTHON_LIB') {
+                        echo "No se requiere parar el servicio actual en PYTHON_LIB"
+                    }
                     echo "🔁 Rollback completado"
                 } else {
                     echo "❌ No se encontró backup para hacer rollback. Estado de la variable HAD_RUNNING_SERVICE: ${env.HAD_RUNNING_SERVICE}"
