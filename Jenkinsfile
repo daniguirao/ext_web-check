@@ -24,14 +24,6 @@ pipeline {
                 }
             }
         }
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                    credentialsId: 'github-token',
-                    url: 'https://github.com/daniguirao/ext_web-check.git'
-            }
-        }
-
         stage('Backup building') {
             steps {
                 script {
@@ -42,24 +34,22 @@ pipeline {
                 }
             }
         }
-
-        stage('Crear enlaces simbólicos (solo una vez)') {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    credentialsId: 'github-token',
+                    url: 'https://github.com/daniguirao/ext_web-check.git'
+            }
+        }
+        stage('Moviendo ficheros a ruta destino') {
             steps {
                 script {
-                    echo "📁 Generando estructura de enlaces simbólicos..."
+                    echo "📁 Generando estructura copiando los ficheros"
 
                     // Comando bash que crea la estructura y enlaza solo archivos
-                    sh """
-                        cd ${env.WORKSPACE}
+                    sh "cp ${env.WORKSPACE}/* ${env.TARGET_PATH}/*"
 
-                        find . -type f | while read file; do
-                            target_dir="${env.TARGET_PATH}/\$(dirname "\$file")"
-                            mkdir -p "\$target_dir"
-                            ln -sf "${env.WORKSPACE}/\$file" "\$target_dir/\$(basename "\$file")"
-                        done
-                    """
-
-                    echo "✅ Enlaces simbólicos creados en ${env.TARGET_PATH}"
+                    echo "✅ Ficheros actualizados en ${env.TARGET_PATH}"
                 }
             }
         }
