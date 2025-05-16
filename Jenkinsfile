@@ -19,10 +19,12 @@ pipeline {
         stage('Backup anterior') {
             steps {
                 script {
-                    if (fileExists(env.COMPOSE_FILE)) {
-                        sh "mkdir -p ${env.BACKUP_DIR}"
-                        sh "cp ${env.COMPOSE_FILE} ${env.BACKUP_DIR}/${env.COMPOSE_FILE}.bak"
-                    }
+                    def backupDir = "${env.WORKSPACE}/${env.BACKUP_DIR}_${PROJECT_NAME}"
+                    def sourceDir = "${env.WORKSPACE}/${PROJECT_NAME}"
+                    sh "mkdir -p ${backupDir}"
+                    sh "rm -rf ${backupDir}/* || true"
+                    sh "cp -r ${sourceDir}/* ${backupDir}/"
+                    echo "Backup realizado en: ${backupDir}"
                 }
             }
         }
@@ -30,9 +32,17 @@ pipeline {
         stage('Parar servicio actual') {
             steps {
                 script {
-                    sh """
-                        docker-compose -f ${env.COMPOSE_FILE} down || true
-                    """
+                    def running = sh(
+                        script: "docker-compose -f ${env.COMPOSE_FILE} ps -q | grep -q . && echo true || echo false",
+                        returnStdout: true
+                    ).trim()
+
+                    // Guardamos el estado en una variable de entorno
+                    env.HAD_RUNNING_SERVICE = running
+                    echo "¿Había servicios corriendo?: ${env.HAD_RUNNING_SERVICE}"
+
+                    // Paramos el servicio si estaba corriendo
+                    sh "docker-compose -f ${env.COMPOSE_FILE} down || true"
                 }
             }
         }
@@ -51,6 +61,12 @@ pipeline {
             }
         }
 
+        stage('Ver directorio') {
+            steps {
+                echo "Ruta del workspace: ${env.WORKSPACE}"
+                sh "ls -la ${env.WORKSPACE}"
+            }
+        }
         stage('Verificación del despliegue') {
             steps {
                 script {
@@ -66,14 +82,26 @@ pipeline {
     post {
         failure {
             script {
-                echo "Rollback en progreso..."
-                if (fileExists("${env.BACKUP_DIR}/${env.COMPOSE_FILE}.bak")) {
-                    sh """
-                        cp ${env.BACKUP_DIR}/${env.COMPOSE_FILE}.bak ${env.COMPOSE_FILE}
-                        docker-compose -f ${env.COMPOSE_FILE} up -d --build
-                    """
+                def backupDir = "${env.WORKSPACE}/${env.BACKUP_DIR}_${PROJECT_NAME}"
+                def restoreDir = "${env.WORKSPACE}/${PROJECT_NAME}"
+
+                echo "⚠️ Despliegue fallido. Iniciando rollback..."
+
+                if (fileExists(backupDir) && env.HAD_RUNNING_SERVICE == "true") {
+                    echo "✔️ Backup encontrado en ${backupDir}. Restaurando..."
+
+                    // Borra los archivos actuales
+                    sh "rm -rf ${restoreDir}/*"
+
+                    // Restaura desde el backup
+                    sh "cp -r ${backupDir}/* ${restoreDir}/"
+
+                    // Intenta levantar nuevamente el servicio
+                    sh "docker-compose -f ${restoreDir}/docker-compose.yml up -d --build || true"
+
+                    echo "🔁 Rollback completado"
                 } else {
-                    echo "No se encontró un backup para hacer rollback"
+                    echo "❌ No se encontró backup para hacer rollback. Estado de la variable HAD_RUNNING_SERVICE: ${env.HAD_RUNNING_SERVICE}"
                 }
             }
         }
