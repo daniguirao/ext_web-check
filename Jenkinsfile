@@ -8,6 +8,7 @@ pipeline {
         TARGET_PATH = ""
         COMPOSE_FILE = "${env.TARGET_PATH}/docker-compose.yml"
     }
+    
     stages {
         stage('Inicialización de variables') {
             steps {
@@ -25,8 +26,6 @@ pipeline {
                 }
             }
         }
-
-    stages {
         stage('Checkout') {
             steps {
                 git branch: 'main',
