@@ -5,7 +5,6 @@ pipeline {
         TYPE_PROJECT = 'DOCKER_COMPOSE_BUILD'
         PROJECT_NAME = "${env.JOB_NAME}"
         BACKUPDIR = "${env.BACKUPSPACE}/${env.PROJECT_NAME}"
-        COMPOSE_FILE = "${env.TARGET_PATH}/docker-compose.yml"
     }
     
     stages {
