@@ -19,7 +19,7 @@ pipeline {
                     } else {
                         error "Tipo de proyecto desconocido: ${env.TYPE_PROJECT}"
                     }
-
+                    env.COMPOSE_FILE = "${env.TARGET_PATH}/docker-compose.yml"
                     echo "🔧 TARGET_PATH establecido en: ${env.TARGET_PATH}"
                     echo "🔧 COMPOSE_FILE establecido en: ${env.COMPOSE_FILE}"
                 }
