@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         COMPOSE_FILE = "docker-compose.yml"
-        BACKUP_DIR = ".backup"
         PROJECT_NAME = "ext_web-check"
+        BACKUPDIR = "${env.BACKUPSPACE}/${env.PROJECT_NAME}"
     }
 
     stages {
@@ -19,12 +19,10 @@ pipeline {
         stage('Backup anterior') {
             steps {
                 script {
-                    def backupDir = "${env.WORKSPACE}/${env.BACKUP_DIR}_${PROJECT_NAME}"
-                    def sourceDir = "${env.WORKSPACE}/${PROJECT_NAME}"
-                    sh "mkdir -p ${backupDir}"
-                    sh "rm -rf ${backupDir}/* || true"
-                    sh "cp -r ${sourceDir}/* ${backupDir}/"
-                    echo "Backup realizado en: ${backupDir}"
+                    sh "mkdir -p ${env.BACKUPDIR}"
+                    sh "rm -rf ${env.BACKUPDIR}/* || true"
+                    sh "cp -r ${env.WORKSPACE}/* ${env.BACKUPDIR}/"
+                    echo "Backup realizado en: ${env.BACKUPDIR}"
                 }
             }
         }
@@ -87,17 +85,17 @@ pipeline {
 
                 echo "⚠️ Despliegue fallido. Iniciando rollback..."
 
-                if (fileExists(backupDir) && env.HAD_RUNNING_SERVICE == "true") {
-                    echo "✔️ Backup encontrado en ${backupDir}. Restaurando..."
+                if (fileExists(env.BACKUPDIR) && env.HAD_RUNNING_SERVICE == "true") {
+                    echo "✔️ Backup encontrado en ${env.BACKUPDIR}. Restaurando..."
 
                     // Borra los archivos actuales
-                    sh "rm -rf ${restoreDir}/*"
+                    sh "rm -rf ${env.WORKSPACE}/*"
 
                     // Restaura desde el backup
-                    sh "cp -r ${backupDir}/* ${restoreDir}/"
+                    sh "cp -r ${env.BACKUPDIR}/* ${env.WORKSPACE}/"
 
                     // Intenta levantar nuevamente el servicio
-                    sh "docker-compose -f ${restoreDir}/docker-compose.yml up -d --build || true"
+                    sh "docker-compose -f ${env.WORKSPACE}/docker-compose.yml up -d --build || true"
 
                     echo "🔁 Rollback completado"
                 } else {
