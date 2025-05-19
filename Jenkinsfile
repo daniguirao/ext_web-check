@@ -5,6 +5,10 @@ pipeline {
         TYPE_PROJECT = 'DOCKER_COMPOSE_BUILD'
         PROJECT_NAME = "${env.JOB_NAME}"
         BACKUPDIR = "${env.BACKUPSPACE}/${env.PROJECT_NAME}"
+        ENV_FLAG = 'OFF'
+        TESTING_CHECK = 'OFF' // ON or OFF
+        DOCKER_TESTING = 'ON' // ON or OFF
+        SCRIPT_TESTING = 'tests.sh' // Script de pruebas salida OK = 0
     }
     
     stages {
@@ -84,7 +88,13 @@ pipeline {
                 script {
                     if (env.TYPE_PROJECT == 'DOCKER_COMPOSE_BUILD') {
                         try {
-                            sh "docker-compose -f ${env.COMPOSE_FILE} up -d --build"
+                            if (env.ENV_FLAG == 'ON') {
+                                echo "🚀 Desplegando en entorno de producción..."
+                                sh "docker-compose --env-file ${env.ENVFILE} -f ${env.COMPOSE_FILE} up -d --build"
+                            }else{
+                                echo "🚀 Desplegando en entorno de producción..."
+                                sh "docker-compose -f ${env.COMPOSE_FILE} up -d --build"
+                            }
                         } catch (e) {
                             echo "¡Error en el despliegue!"
                             currentBuild.result = 'FAILURE'
@@ -105,6 +115,29 @@ pipeline {
                         def running = sh(script: "docker ps --filter 'name=${env.PROJECT_NAME}' --format '{{.Names}}'", returnStdout: true).trim()
                         if (!running) {
                             error("El servicio ${env.PROJECT_NAME} no está corriendo")
+                        }
+                        if (env.TESTING_CHECK == 'ON') {
+                            if (env.DOCKER_TESTING == 'ON') {
+                                echo "🧪 Ejecutando pruebas en Docker..."
+                                def testResult = sh(
+                                    script: "docker exec ${env.PROJECT_NAME} ${env.SCRIPT_TESTING}",
+                                    returnStatus: true
+                                )
+                                if (testResult != 0) {
+                                    error("❌ Las pruebas en Docker fallaron con código de salida: ${testResult}")
+                                }
+                                echo "✅ Pruebas en Docker completadas exitosamente"
+                            } else {
+                                echo "🧪 Ejecutando pruebas localmente..."
+                                def testResult = sh(
+                                    script: "${env.SCRIPT_TESTING}",
+                                    returnStatus: true
+                                )
+                                if (testResult != 0) {
+                                    error("❌ Las pruebas locales fallaron con código de salida: ${testResult}")
+                                }
+                                echo "✅ Pruebas locales completadas exitosamente"
+                            }
                         }
                     }
                     if (env.TYPE_PROJECT == 'PYTHON_LIB') {
@@ -133,7 +166,13 @@ pipeline {
                     sh "cp -r ${env.BACKUPDIR}/* ${env.WORKSPACE}/"
 
                     if (env.TYPE_PROJECT == 'DOCKER_COMPOSE_BUILD') {
-                        sh "docker-compose -f ${COMPOSE_FILE} up -d --build || true"
+                        
+                        if (env.ENV_FLAG == 'ON') {
+                            sh "docker-compose --env-file ${env.ENVFILE} -f ${COMPOSE_FILE} up -d --build || true"
+                        }else{
+                            sh "docker-compose -f ${COMPOSE_FILE} up -d --build || true"
+                        }
+                        
                     }
 
                     if (env.TYPE_PROJECT == 'PYTHON_LIB') {
