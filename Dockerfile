@@ -7,9 +7,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libc-dev && \
     rm -rf /var/lib/apt/lists/*
 
+# Creamos el directorio de tests
+RUN mkdir -p /tests
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
+COPY tests.py /tests/
 
 CMD ["python", "app.py"]

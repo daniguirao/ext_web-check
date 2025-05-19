@@ -6,9 +6,9 @@ pipeline {
         PROJECT_NAME = "${env.JOB_NAME}"
         BACKUPDIR = "${env.BACKUPSPACE}/${env.PROJECT_NAME}"
         ENV_FLAG = 'OFF'
-        TESTING_CHECK = 'OFF' // ON or OFF
+        TESTING_CHECK = 'ON' // ON or OFF
         DOCKER_TESTING = 'ON' // ON or OFF
-        SCRIPT_TESTING = 'tests.sh' // Script de pruebas salida OK = 0
+        SCRIPT_TESTING = '/tests/tests.py' // Script de pruebas salida OK = 0
     }
     
     stages {
@@ -120,7 +120,7 @@ pipeline {
                             if (env.DOCKER_TESTING == 'ON') {
                                 echo "🧪 Ejecutando pruebas en Docker..."
                                 def testResult = sh(
-                                    script: "docker exec ${env.PROJECT_NAME} ${env.SCRIPT_TESTING}",
+                                    script: "docker exec ${env.PROJECT_NAME} python ${env.SCRIPT_TESTING}",
                                     returnStatus: true
                                 )
                                 if (testResult != 0) {
